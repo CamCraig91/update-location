@@ -1,0 +1,77 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Updating Your Record...</title>
+    <style>
+      body { font-family: Arial, sans-serif; text-align: center; padding-top: 2em; }
+    </style>
+  </head>
+  <body>
+    <h1>Updating Your Location…</h1>
+    <p id="status">Acquiring GPS coordinates...</p>
+
+    <script>
+      // Retrieve recordId from the query string.
+      const params = new URLSearchParams(window.location.search);
+      const recordId = params.get('recordId');
+
+      if (!recordId) {
+        document.getElementById('status').innerText = 'Error: Record ID missing.';
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            
+            document.getElementById('status').innerText =
+              'Coordinates obtained. Updating record...';
+            
+            // Call the Method:CRM API to update the record.
+            fetch('https://api.methodcrm.com/records/update', {  
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // Replace YOUR_METHOD_API_TOKEN with the actual token.
+                'Authorization': 'Bearer YOUR_METHOD_API_TOKEN'
+              },
+              body: JSON.stringify({
+                recordId: recordId,
+                latitude: latitude,
+                longitude: longitude
+              })
+            })
+            .then(response => {
+              // Optionally check for HTTP errors here.
+              return response.json();
+            })
+            .then(data => {
+              console.log('Record updated successfully:', data);
+              document.getElementById('status').innerText =
+                'Record updated successfully!';
+              // Wait a short time, then close the window.
+              setTimeout(() => {
+                window.close();
+                // If window.close() doesn’t work, you might want to redirect instead:
+                // window.location.href = "https://your.methodcrm.com/returnPage";
+              }, 1500);
+            })
+            .catch(error => {
+              console.error('Error updating record:', error);
+              document.getElementById('status').innerText =
+                'Error updating record. Please try again.';
+            });
+          },
+          (error) => {
+            document.getElementById('status').innerText =
+              'Error obtaining location: ' + error.message;
+            console.error('Error obtaining location:', error);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        document.getElementById('status').innerText =
+          'Geolocation is not supported by your browser.';
+      }
+    </script>
+  </body>
+</html>
