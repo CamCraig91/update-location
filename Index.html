@@ -4,73 +4,93 @@
     <title>Updating Your Record...</title>
     <style>
       body { font-family: Arial, sans-serif; text-align: center; padding-top: 2em; }
+      #location-output, #json-output { margin-top: 1em; font-family: Courier, monospace; color: #333; white-space: pre-wrap; }
     </style>
   </head>
   <body>
-    <h1>Updating Your Location…</h1>
-    <p id="status">Acquiring GPS coordinates...</p>
-
+    <h1>Acquiring Your Location...</h1>
+    <p id="status">Please wait while we update your record.</p>
+    <h3>Your Location Details:</h3>
+    <pre id="location-output"></pre> <!-- Displays latitude and longitude -->
+    <h3>JSON Payload Sent:</h3>
+    <pre id="json-output"></pre> <!-- Displays the outgoing JSON payload -->
     <script>
-      // Retrieve recordId from the query string.
+      // Parse the recordId and authorization code from the URL's query parameters.
       const params = new URLSearchParams(window.location.search);
       const recordId = params.get('recordId');
+      const authCode = params.get('authCode');
 
-      if (!recordId) {
-        document.getElementById('status').innerText = 'Error: Record ID missing.';
+      if (!recordId || !authCode) {
+        document.getElementById('status').innerText = 'Error: Missing required parameters.';
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            
-            document.getElementById('status').innerText =
-              'Coordinates obtained. Updating record...';
-            
-            // Call the Method:CRM API to update the record.
-            fetch('https://api.methodcrm.com/records/update', {  
-              method: 'POST',
+            const latitude = position.coords.latitude.toFixed(6); // Ensure consistent formatting
+            const longitude = position.coords.longitude.toFixed(6);
+
+            // Display the location details on the screen
+            document.getElementById('location-output').innerText = `Latitude: ${latitude}\nLongitude: ${longitude}`;
+
+            // Construct the Method:CRM API endpoint URL with the recordId in the path.
+            const updateEndpoint = `https://rest.method.me/api/v1/tables/CustomSchedule/${recordId}`;
+
+            // Create the JSON payload to be sent
+            const payload = {
+              data: {
+                ActualStartLatitude: latitude.toString(),
+                ActualStartLongitude: longitude.toString()
+              }
+            };
+
+            // Display the JSON payload on the webpage
+            document.getElementById('json-output').innerText = JSON.stringify(payload, null, 2);
+
+            // Make the PATCH request to update the record.
+            fetch(updateEndpoint, {
+              method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                // Replace YOUR_METHOD_API_TOKEN with the actual token.
-                'Authorization': 'Bearer YOUR_METHOD_API_TOKEN'
+                'Authorization': `APIKey ${authCode}` // Use the authorization code passed dynamically
               },
-              body: JSON.stringify({
-                recordId: recordId,
-                latitude: latitude,
-                longitude: longitude
-              })
+              body: JSON.stringify(payload) // Send the payload
             })
             .then(response => {
-              // Optionally check for HTTP errors here.
-              return response.json();
-            })
-            .then(data => {
-              console.log('Record updated successfully:', data);
-              document.getElementById('status').innerText =
-                'Record updated successfully!';
-              // Wait a short time, then close the window.
-              setTimeout(() => {
-                window.close();
-                // If window.close() doesn’t work, you might want to redirect instead:
-                // window.location.href = "https://your.methodcrm.com/returnPage";
-              }, 1500);
+              console.log('Raw Response:', response); // Log the raw response for debugging
+
+              // Handle success or show errors if present
+              if (response.status === 204) {
+                window.close(); // Close the page on success
+              } else {
+                return response.json()
+                  .then(data => {
+                    console.error('API Error:', data);
+                    document.getElementById('status').innerText = 'Error updating record.';
+                  })
+                  .catch(() => {
+                    response.text().then(text => {
+                      console.log('Text Response:', text);
+                      document.getElementById('status').innerText = 'Error updating record: ' + text;
+                    });
+                  });
+              }
             })
             .catch(error => {
               console.error('Error updating record:', error);
-              document.getElementById('status').innerText =
-                'Error updating record. Please try again.';
+              document.getElementById('status').innerText = 'Error updating record.';
             });
           },
           (error) => {
-            document.getElementById('status').innerText =
-              'Error obtaining location: ' + error.message;
             console.error('Error obtaining location:', error);
+            document.getElementById('status').innerText = 'Error obtaining location: ' + error.message;
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
         );
       } else {
-        document.getElementById('status').innerText =
-          'Geolocation is not supported by your browser.';
+        document.getElementById('status').innerText = 'Geolocation is not supported by your browser.';
       }
     </script>
   </body>
